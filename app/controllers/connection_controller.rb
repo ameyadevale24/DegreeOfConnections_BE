@@ -2,7 +2,7 @@ require 'CSV'
 
 class ConnectionController < ApplicationController
 
-  $MAX_DEGREE = 5
+  MAX_DEGREE = 5
 
   def index
     render json: Connection.order(:userid_a).to_a
@@ -107,7 +107,7 @@ class ConnectionController < ApplicationController
         n.children << node
         level += 1
         # not constructing a tree beyond 5 levels, since even if a path > 5 exits, we are not gonna give it to the client
-        if level <= $MAX_DEGREE 
+        if level <= MAX_DEGREE 
           helper(node, arr, level)
         end
       end
