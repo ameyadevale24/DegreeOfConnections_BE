@@ -1,6 +1,9 @@
 require 'CSV'
 
 class ConnectionController < ApplicationController
+
+  $MAX_DEGREE = 5
+
   def index
     render json: Connection.order(:userid_a).to_a
   end
@@ -13,53 +16,35 @@ class ConnectionController < ApplicationController
   end
 
   def connectionBetween
+    # find connection between two users
+    result = ''
+    path = ''
+    degree = 0
     a = params[:user_a].to_i
     b = params[:user_b].to_i
     if a == b
-      render json: 'Same user'
-    end
-    # results = Connection.where('userid_a=? OR userid_b=?', a, a).select('userid_a, userid_b')
-    path = Array.new
-    allConnections = Connection.order(:userid_a).to_a;
-    tree = makeTree(allConnections, a)
-    user2_node = levelOrderTraveral(tree, b)
-    path = getPathToRoot(user2_node)
-    #findConnection(a, b, allConnections, 0, -1, path)
-    userNames = ReplaceIdByName(path)
-    render json: { path: ArrayToString(userNames), degree: path.size - 1 } 
-  end
-
-  def findConnection(a, b, arr, degree, parent, path)
-    degree += 1
-    path << a
-    if degree > 5
-      return -1
-    end
-    temp = Array.new
-    arr.each do |x|
-      if x.userid_a == a && x.userid_b != parent
-        temp << x.userid_b
-      elsif x.userid_b == a && x.userid_a != parent
-        temp << x.userid_a
+      result = 'same users' 
+    else # continue if users are distinct
+      allConnections = Connection.order(:userid_a).to_a;
+      tree = buildTree(allConnections, a)
+      user2NodeInTree = levelOrderTraveral(tree, b)
+      if user2NodeInTree.nil?
+        result = 'No path found or degree of connection is more than 5'
+      else 
+        # user2 found in tree (so degree is <= 5)
+        # so prepare the path
+        pathArray = getPathToRoot(user2NodeInTree)
+        userNamesArray = ReplaceIdByName(pathArray)
+        result = 'Path found'
+        path = ArrayToString(userNamesArray)
+        degree = pathArray.size - 1
       end
     end
-    p temp
-    if temp.length == 0
-      return -1
-    elsif temp.include? b
-      path << b
-      return degree
-    else
-      temp.each do |x|
-        ret = findConnection(x, b, arr, degree, a, path)
-        if ret != -1
-          return ret
-        end
-      end
-    end
+    render json: { result: result, path: path, degree: degree } 
   end
 
   def ReplaceIdByName(arr)
+    # replaces all the user ids in array with name
     allUsers = User.order(:id)
     userNames = Array.new
     arr.each do |x|
@@ -69,14 +54,16 @@ class ConnectionController < ApplicationController
   end
 
   def ArrayToString(arr)
-    ret = arr.at(0).to_s
+    # converts array into a path with arrows
+    result = arr.at(0).to_s
     arr.drop(1).each do |x|
-      ret = ret + ' -> ' +  x.to_s
+      result = result + ' -> ' +  x.to_s
     end 
-    return ret
+    return result
   end
 
   def GetUserName(id, arr) 
+    # return name for a given id
     arr.each do |x|
       if x[:id] == id
         return x[:name]
@@ -84,8 +71,9 @@ class ConnectionController < ApplicationController
     end
   end
 
-  def makeTree(arr, n)
+  def buildTree(arr, n)
     # prepares a tree with root as user1 (we are finding connection between user1 <-> user2)
+    # this tree is basically to find the connections from one user (root) to all other users
     root = Tree.new(n)
     root.ancestors << nil
     arr.each do |child|
@@ -98,13 +86,14 @@ class ConnectionController < ApplicationController
       if node != nil
         node.ancestors << n
         root.children << node
-        helper(node, arr)
+        helper(node, arr, 2)
       end
     end
     return root
   end
 
-  def helper(n, arr)
+  def helper(n, arr, level)
+    # helper function to add childrens to a node
     arr.each do |child|
       node = nil
       if child.userid_a == n.value && !(n.ancestors.include? child.userid_b)
@@ -112,16 +101,22 @@ class ConnectionController < ApplicationController
       elsif child.userid_b == n.value && !(n.ancestors.include? child.userid_a)
         node = Tree.new(child.userid_a)
       end
+      # if node is created, add it as a child
       if node != nil
         (node.ancestors.concat n.ancestors) << n.value
         n.children << node
-        helper(node, arr)
+        level += 1
+        # not constructing a tree beyond 5 levels, since even if a path > 5 exits, we are not gonna give it to the client
+        if level <= $MAX_DEGREE 
+          helper(node, arr, level)
+        end
       end
     end
   end
 
   def levelOrderTraveral(root, user2_id)
-    return nil if root.nil? || root.nil? # nothing to do if there is no node or root to begin the search
+    # find the node of user2_id, we are doing level order to find the shortest path
+    return nil if root.nil? || root.nil? # nothing to search if there is no root
     queue = Queue.new
     queue.enq(root)
     while !queue.empty?
@@ -134,10 +129,11 @@ class ConnectionController < ApplicationController
       node.children.each do |child| queue.enq(child) end
     end
 
-    return nil # returns node found in BST else default value nil
+    return nil # returns nil if node for user2 not found
   end
 
   def getPathToRoot(node)
+    # constructs a path to root from a given node
     result = Array.new
     node.ancestors.each do |parent|
       result << parent
