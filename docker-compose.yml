@@ -1,10 +1,16 @@
-version: '3.4'
+version: '3.7'
 
 services:
-  degreeofconnectionsbe:
+  api:
     # image: docbe
     build:
       context: .
     command: bundle exec puma -C config/puma.rb
     ports:
       - 3000:3000
+    networks:
+      - backend-net
+
+networks:
+  backend-net:
+    driver: bridge
