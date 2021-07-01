@@ -8,7 +8,7 @@ class UserController < ApplicationController
   def store
     csv = CSV.parse(params[:file].read, :headers => true)
     csv.each do |user|
-      User.create(:id=>user['userid'], :name=>user['name'])
+      User.create(:id=>user['id'], :name=>user['name'])
     end
   end
 end
