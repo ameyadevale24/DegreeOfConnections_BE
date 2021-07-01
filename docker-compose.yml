@@ -5,12 +5,7 @@ services:
     # image: docbe
     build:
       context: .
+    entrypoint: ["/app/start.sh"]
     command: bundle exec puma -C config/puma.rb
     ports:
       - 3000:3000
-    networks:
-      - backend-net
-
-networks:
-  backend-net:
-    driver: bridge

@@ -10,4 +10,9 @@ EXPOSE 3000
 RUN gem install bundler -v 2.2.21
 RUN bundle install
 
+COPY start.sh /app/
+RUN chmod +x /app/start.sh
+ENTRYPOINT ["start.sh"]
+
 CMD ["rails", "server"]
+# CMD ["/app/start.sh"]
